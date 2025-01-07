@@ -3,7 +3,6 @@ import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers/dist
 const TASK_NAME = "automatic-speech-recognition";
 const MODEL_NAME = "Xenova/whisper-tiny";
 const SAMPLE_RATE = 16000;
-const MIN_AUDIO_LENGTH = SAMPLE_RATE * 1; // 1 second minimum
 
 let transcriber = null;
 let isModelLoaded = false;
@@ -59,16 +58,13 @@ function processAudioChunk(audioData) {
   audioBuffer = audioBuffer.concat(Array.from(audioData));
   console.log("Buffer size:", audioBuffer.length);
 
-  // Process when we have 1 second of audio (16000 samples)
   if (audioBuffer.length >= SAMPLE_RATE) {
     const audioToProcess = new Float32Array(audioBuffer.slice(0, SAMPLE_RATE));
 
-    // Log audio levels for debugging
     const maxLevel = Math.max(...audioToProcess.map(Math.abs));
     console.log("Max audio level:", maxLevel);
 
     if (maxLevel > 0.01) {
-      // Only process if audio level is sufficient
       transcribeAudio(audioToProcess);
     }
 
@@ -81,7 +77,7 @@ async function transcribeAudio(audioData) {
     console.log("Starting transcription...");
     const result = await transcriber(audioData, {
       sampling_rate: SAMPLE_RATE,
-      return_timestamps: false, // Simplify for debugging
+      return_timestamps: false,
       language: "es",
     });
 

@@ -51,46 +51,45 @@ btnStartTranscription.onclick = async () => {
 };
 
 async function startAudioProcessing() {
-    try {
-      mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          channelCount: 1,
-          sampleRate: 16000
-        }
-      });
-      
-      audioContext = new (window.AudioContext || window.webkitAudioContext)({
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
         sampleRate: 16000,
-        latencyHint: 'interactive'
-      });
-      
-      await audioContext.resume();
-      
-      const source = audioContext.createMediaStreamSource(mediaStream);
-      processor = audioContext.createScriptProcessor(8192, 1, 1); // Valid power of 2
-  
-      processor.onaudioprocess = (event) => {
-        if (!isRecording) return;
-        
-        const inputData = event.inputBuffer.getChannelData(0);
-        if (inputData.some(sample => Math.abs(sample) > 0.01)) {
-          worker.postMessage({
-            type: "transcribe",
-            audioData: new Float32Array(inputData)
-          });
-        }
-      };
-  
-      source.connect(processor);
-      processor.connect(audioContext.destination);
-      worker.postMessage({ type: "reset" });
-      console.log("Audio capture started");
-      
-    } catch (error) {
-      console.error("Audio processing error:", error);
-      throw error;
-    }
+      },
+    });
+
+    audioContext = new (window.AudioContext || window.webkitAudioContext)({
+      sampleRate: 16000,
+      latencyHint: "interactive",
+    });
+
+    await audioContext.resume();
+
+    const source = audioContext.createMediaStreamSource(mediaStream);
+    processor = audioContext.createScriptProcessor(8192, 1, 1);
+
+    processor.onaudioprocess = (event) => {
+      if (!isRecording) return;
+
+      const inputData = event.inputBuffer.getChannelData(0);
+      if (inputData.some((sample) => Math.abs(sample) > 0.01)) {
+        worker.postMessage({
+          type: "transcribe",
+          audioData: new Float32Array(inputData),
+        });
+      }
+    };
+
+    source.connect(processor);
+    processor.connect(audioContext.destination);
+    worker.postMessage({ type: "reset" });
+    console.log("Audio capture started");
+  } catch (error) {
+    console.error("Audio processing error:", error);
+    throw error;
   }
+}
 
 function stopAudioProcessing() {
   if (mediaStream) {
