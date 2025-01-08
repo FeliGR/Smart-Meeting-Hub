@@ -1,10 +1,20 @@
-const transcriptionWorker = new Worker("worker.js", { type: "module" });
-const keywordWorker = new Worker("keywordWorker.js", { type: "module" });
+// ========== Constants ==========
+const SAMPLE_RATE = 16000; // 16 kHz sample rate
+const BUFFER_SIZE = 8192; // Buffer size for the ScriptProcessor
+const AMPLITUDE_THRESHOLD = 0.01; // Minimal amplitude to be considered "significant"
+const ACCUMULATION_SECONDS = 1; // ~1 second accumulation (16k samples)
+
+// ========== DOM References ==========
 const btnStartTranscription = document.querySelector("#startTranscription");
 const transcriptionDisplay = document.querySelector("#transcriptionDisplay");
 const statusDisplay = document.querySelector("#statusDisplay");
 const ideasDisplay = document.querySelector("#ideasDisplay");
 
+// ========== Workers ==========
+const transcriptionWorker = new Worker("worker.js", { type: "module" });
+const keywordWorker = new Worker("keywordWorker.js", { type: "module" });
+
+// ========== State Flags & Variables ==========
 let isRecording = false;
 let mediaStream = null;
 let audioContext = null;
@@ -12,43 +22,106 @@ let processor = null;
 let isTranscriberReady = false;
 let isKeywordWorkerReady = false;
 
+// ========== Init Workers ==========
 transcriptionWorker.postMessage({ type: "load" });
 keywordWorker.postMessage({ type: "load" });
 
+// Handle messages from transcription worker
+transcriptionWorker.onmessage = (e) => {
+  switch (e.data.type) {
+    case "ready":
+      isTranscriberReady = true;
+      checkWorkersReady();
+      break;
+    case "transcription":
+      displayTranscription(e.data.text);
+      processForIdeas(e.data.text);
+      break;
+    case "error":
+      console.error("Transcription worker error:", e.data.message);
+      updateStatus("Error: " + e.data.message);
+      break;
+  }
+};
+
+// Handle messages from keyword worker
+keywordWorker.onmessage = (e) => {
+  switch (e.data.type) {
+    case "ready":
+      isKeywordWorkerReady = true;
+      checkWorkersReady();
+      break;
+    case "ideas":
+      displayIdeas(e.data.ideas);
+      break;
+    case "error":
+      console.error("Keyword worker error:", e.data.message);
+      break;
+  }
+};
+
+// ========== Event Listeners ==========
+// Toggle recording when button is clicked
 btnStartTranscription.onclick = async () => {
   if (!isTranscriberReady) return;
 
   if (!isRecording) {
+    // Start recording
     try {
       await startAudioProcessing();
       btnStartTranscription.textContent = "Stop Recording";
-      statusDisplay.textContent = "Recording...";
+      updateStatus("Recording...");
       isRecording = true;
     } catch (error) {
       console.error("Failed to start recording:", error);
-      statusDisplay.textContent = "Error: " + error.message;
+      updateStatus("Error: " + error.message);
     }
   } else {
+    // Stop recording
     stopAudioProcessing();
     btnStartTranscription.textContent = "Start Recording";
-    statusDisplay.textContent = "Stopped";
+    updateStatus("Stopped");
     isRecording = false;
   }
 };
 
+// ========== Functions ==========
+
+/**
+ * Checks if both workers are ready.
+ * If ready, enables the start button and updates status.
+ */
+function checkWorkersReady() {
+  if (isTranscriberReady && isKeywordWorkerReady) {
+    updateStatus("Ready to record");
+    btnStartTranscription.disabled = false;
+  }
+}
+
+/**
+ * Updates the status display text.
+ * @param {string} message
+ */
+function updateStatus(message) {
+  statusDisplay.textContent = message;
+}
+
+/**
+ * Starts audio capture and processing from the user's microphone.
+ */
 async function startAudioProcessing() {
   try {
     // Request user microphone with 16 kHz sample rate
     mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         channelCount: 1,
-        sampleRate: 16000,
+        sampleRate: SAMPLE_RATE,
       },
     });
 
     // Create an AudioContext at 16 kHz
     audioContext = new (window.AudioContext || window.webkitAudioContext)({
-      sampleRate: 16000,
+      sampleRate: SAMPLE_RATE,
       latencyHint: "interactive",
     });
 
@@ -57,41 +130,30 @@ async function startAudioProcessing() {
     // MediaStream source
     const source = audioContext.createMediaStreamSource(mediaStream);
 
-    // ScriptProcessor with buffer size of 8192 (about 0.5s at 16kHz)
-    // We'll accumulate two chunks to get ~1s total.
-    processor = audioContext.createScriptProcessor(8192, 1, 1);
+    // ScriptProcessor for capturing audio data
+    processor = audioContext.createScriptProcessor(BUFFER_SIZE, 1, 1);
 
-    // Constants for accumulation
-    const SAMPLES_PER_SECOND = 16000;
     let audioBuffer = [];
 
     // Process audio data
     processor.onaudioprocess = (event) => {
       if (!isRecording) return;
 
-      // Grab the audio samples from the left channel
       const inputData = event.inputBuffer.getChannelData(0);
-
-      // Optional: check if there's a significant amplitude before we bother sending
-      // If you'd like to capture everything (including very soft speech),
-      // remove or lower this threshold check.
       const hasSignificantAudio = inputData.some(
-        (sample) => Math.abs(sample) > 0.01
+        (sample) => Math.abs(sample) > AMPLITUDE_THRESHOLD
       );
 
       if (hasSignificantAudio) {
-        // Accumulate samples in our buffer
+        // Accumulate samples
         audioBuffer.push(...inputData);
 
-        // Once we've collected at least 1 second of audio (16k samples), send it
-        if (audioBuffer.length >= SAMPLES_PER_SECOND) {
-          // Send the entire 1-second chunk to the transcription worker
+        // Once we've collected ~1 second of audio, send it to the worker
+        if (audioBuffer.length >= SAMPLE_RATE * ACCUMULATION_SECONDS) {
           transcriptionWorker.postMessage({
             type: "transcribe",
             audioData: new Float32Array(audioBuffer),
           });
-
-          // Reset the buffer
           audioBuffer = [];
         }
       }
@@ -101,16 +163,19 @@ async function startAudioProcessing() {
     source.connect(processor);
     processor.connect(audioContext.destination);
 
-    // Let the worker know we’re starting a new session
+    // Let the worker know we're starting a new session
     transcriptionWorker.postMessage({ type: "reset" });
 
-    console.log("Audio capture started with 1s accumulation.");
+    console.log("Audio capture started with ~1s accumulation.");
   } catch (error) {
     console.error("Audio processing error:", error);
-    throw error; // So your caller knows something failed
+    throw error; // Propagate error
   }
 }
 
+/**
+ * Stops audio capture and cleans up resources.
+ */
 function stopAudioProcessing() {
   if (mediaStream) {
     mediaStream.getTracks().forEach((track) => track.stop());
@@ -127,9 +192,14 @@ function stopAudioProcessing() {
     audioContext = null;
   }
 
+  // Reset transcription worker session
   transcriptionWorker.postMessage({ type: "reset" });
 }
 
+/**
+ * Appends the transcribed text to the transcription display.
+ * @param {string} text
+ */
 function displayTranscription(text) {
   if (!text?.trim()) return;
 
@@ -139,45 +209,10 @@ function displayTranscription(text) {
   transcriptionDisplay.scrollTop = transcriptionDisplay.scrollHeight;
 }
 
-transcriptionWorker.onmessage = (e) => {
-  switch (e.data.type) {
-    case "ready":
-      isTranscriberReady = true;
-      checkWorkersReady();
-      break;
-    case "transcription":
-      displayTranscription(e.data.text);
-      processForIdeas(e.data.text);
-      break;
-    case "error":
-      console.error("Transcription worker error:", e.data.message);
-      statusDisplay.textContent = "Error: " + e.data.message;
-      break;
-  }
-};
-
-keywordWorker.onmessage = (e) => {
-  switch (e.data.type) {
-    case "ready":
-      isKeywordWorkerReady = true;
-      checkWorkersReady();
-      break;
-    case "ideas":
-      displayIdeas(e.data.ideas);
-      break;
-    case "error":
-      console.error("Keyword worker error:", e.data.message);
-      break;
-  }
-};
-
-function checkWorkersReady() {
-  if (isTranscriberReady && isKeywordWorkerReady) {
-    statusDisplay.textContent = "Ready to record";
-    btnStartTranscription.disabled = false;
-  }
-}
-
+/**
+ * Sends new text to the keyword worker for idea extraction.
+ * @param {string} text
+ */
 function processForIdeas(text) {
   keywordWorker.postMessage({
     type: "process",
@@ -185,21 +220,31 @@ function processForIdeas(text) {
   });
 }
 
+/**
+ * Displays idea cards in the ideas display container.
+ * @param {Array} ideas
+ */
 function displayIdeas(ideas) {
   console.log("Ideas:", ideas);
   ideas.forEach((idea) => {
-    const card = document.createElement("div");
-    card.className = "idea-card";
-    card.draggable = true;
-
-    card.innerHTML = `
-      <p>${idea.text}</p>
-    `;
-
-    card.addEventListener("dragstart", (e) => {
-      e.dataTransfer.setData("text/plain", idea.text);
-    });
-
-    ideasDisplay.appendChild(card);
+    ideasDisplay.appendChild(createIdeaCard(idea));
   });
+}
+
+/**
+ * Creates a draggable idea card element.
+ * @param {{ text: string }} idea
+ * @returns {HTMLDivElement} A card element containing the idea text.
+ */
+function createIdeaCard(idea) {
+  const card = document.createElement("div");
+  card.className = "idea-card";
+  card.draggable = true;
+  card.innerHTML = `<p>${idea.text}</p>`;
+
+  card.addEventListener("dragstart", (e) => {
+    e.dataTransfer.setData("text/plain", idea.text);
+  });
+
+  return card;
 }
