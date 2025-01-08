@@ -29,18 +29,20 @@ async function loadModel() {
 
 async function processText(text) {
   try {
+    // 1) Extraer keywords del texto completo
     const keywords = extractKeywords(text);
 
-    const ideasPrompt = `Instruction: Based on these keywords [${keywords.join(
-      ", "
-    )}], 
-                         generate three innovative ideas related to the context: ${text}`;
+    // 2) Construir un prompt para TODO el texto (no dividimos en oraciones)
+    const ideasPrompt = `
+    Based on the following keywords: [${keywords.join(", ")}], one concrete idea related to the discussion context: "${text}". Ensure each idea is distinct and actionable.`;
 
+    // 3) Llamar al modelo con el prompt entero
     const response = await textGenerator(ideasPrompt, {
-      max_new_tokens: 100,
-      temperature: 0.8,
+      max_new_tokens: 150, // Ajusta según necesites la longitud
     });
-    const generatedText = response[0].generated_text;
+
+    // 4) Toma el texto generado y crea UNA sola idea
+    const generatedText = response[0].generated_text.trim();
 
     self.postMessage({
       type: "ideas",
@@ -48,7 +50,7 @@ async function processText(text) {
         {
           id: Date.now(),
           text: generatedText,
-          keywords: keywords.slice(0, 3),
+          keywords: keywords.slice(0, 3), // Incluye algunas keywords relevantes
         },
       ],
     });
@@ -59,31 +61,31 @@ async function processText(text) {
 }
 
 function extractKeywords(text) {
+  console.log("Input text:", text); // Debugging log
+
   const stopWords = new Set([
-    "the",
-    "is",
-    "at",
-    "which",
-    "on",
-    "and",
-    "a",
-    "an",
-    "in",
-    "to",
-    "for",
-    "of",
+    "the", "is", "at", "which", "on", "and",
+    "a",   "an", "in", "to",    "for", "of",
+    "with","that","this","from","by",
+    "hi" // etc.
   ]);
   const words = text.toLowerCase().split(/\W+/);
-  const frequency = {};
+  console.log("Words after split:", words); // Debugging log
 
+  const frequency = {};
   words.forEach((word) => {
-    if (word.length > 3 && !stopWords.has(word)) {
+    if (word.length >= 2 && !stopWords.has(word)) {
       frequency[word] = (frequency[word] || 0) + 1;
     }
   });
+  console.log("Frequency:", frequency); // Debugging log
 
-  return Object.entries(frequency)
+  // Ordenar por frecuencia y tomar los 7 más usados
+  const keywords = Object.entries(frequency)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
+    .slice(0, 7)
     .map(([word]) => word);
+
+  // Si no hay keywords, meter al menos una por defecto
+  return keywords.length > 0 ? keywords : ["default"];
 }

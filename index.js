@@ -15,24 +15,6 @@ let isKeywordWorkerReady = false;
 transcriptionWorker.postMessage({ type: "load" });
 keywordWorker.postMessage({ type: "load" });
 
-transcriptionWorker.onmessage = (e) => {
-  switch (e.data.type) {
-    case "ready":
-      console.log("Model ready");
-      statusDisplay.textContent = "Ready to record";
-      isTranscriberReady = true;
-      btnStartTranscription.disabled = false;
-      break;
-    case "transcription":
-      displayTranscription(e.data.text);
-      break;
-    case "error":
-      console.error("Worker error:", e.data.message);
-      statusDisplay.textContent = "Error: " + e.data.message;
-      break;
-  }
-};
-
 btnStartTranscription.onclick = async () => {
   if (!isTranscriberReady) return;
 
@@ -56,6 +38,7 @@ btnStartTranscription.onclick = async () => {
 
 async function startAudioProcessing() {
   try {
+    // Request user microphone with 16 kHz sample rate
     mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         channelCount: 1,
@@ -63,6 +46,7 @@ async function startAudioProcessing() {
       },
     });
 
+    // Create an AudioContext at 16 kHz
     audioContext = new (window.AudioContext || window.webkitAudioContext)({
       sampleRate: 16000,
       latencyHint: "interactive",
@@ -70,28 +54,60 @@ async function startAudioProcessing() {
 
     await audioContext.resume();
 
+    // MediaStream source
     const source = audioContext.createMediaStreamSource(mediaStream);
+
+    // ScriptProcessor with buffer size of 8192 (about 0.5s at 16kHz)
+    // We'll accumulate two chunks to get ~1s total.
     processor = audioContext.createScriptProcessor(8192, 1, 1);
 
+    // Constants for accumulation
+    const SAMPLES_PER_SECOND = 16000;
+    let audioBuffer = [];
+
+    // Process audio data
     processor.onaudioprocess = (event) => {
       if (!isRecording) return;
 
+      // Grab the audio samples from the left channel
       const inputData = event.inputBuffer.getChannelData(0);
-      if (inputData.some((sample) => Math.abs(sample) > 0.01)) {
-        transcriptionWorker.postMessage({
-          type: "transcribe",
-          audioData: new Float32Array(inputData),
-        });
+
+      // Optional: check if there's a significant amplitude before we bother sending
+      // If you'd like to capture everything (including very soft speech),
+      // remove or lower this threshold check.
+      const hasSignificantAudio = inputData.some(
+        (sample) => Math.abs(sample) > 0.01
+      );
+
+      if (hasSignificantAudio) {
+        // Accumulate samples in our buffer
+        audioBuffer.push(...inputData);
+
+        // Once we've collected at least 1 second of audio (16k samples), send it
+        if (audioBuffer.length >= SAMPLES_PER_SECOND) {
+          // Send the entire 1-second chunk to the transcription worker
+          transcriptionWorker.postMessage({
+            type: "transcribe",
+            audioData: new Float32Array(audioBuffer),
+          });
+
+          // Reset the buffer
+          audioBuffer = [];
+        }
       }
     };
 
+    // Connect everything
     source.connect(processor);
     processor.connect(audioContext.destination);
+
+    // Let the worker know we’re starting a new session
     transcriptionWorker.postMessage({ type: "reset" });
-    console.log("Audio capture started");
+
+    console.log("Audio capture started with 1s accumulation.");
   } catch (error) {
     console.error("Audio processing error:", error);
-    throw error;
+    throw error; // So your caller knows something failed
   }
 }
 
@@ -121,8 +137,6 @@ function displayTranscription(text) {
   p.textContent = text;
   transcriptionDisplay.appendChild(p);
   transcriptionDisplay.scrollTop = transcriptionDisplay.scrollHeight;
-
-  processForIdeas(text);
 }
 
 transcriptionWorker.onmessage = (e) => {
@@ -172,6 +186,7 @@ function processForIdeas(text) {
 }
 
 function displayIdeas(ideas) {
+  console.log("Ideas:", ideas);
   ideas.forEach((idea) => {
     const card = document.createElement("div");
     card.className = "idea-card";
@@ -179,11 +194,6 @@ function displayIdeas(ideas) {
 
     card.innerHTML = `
       <p>${idea.text}</p>
-      <div class="keywords">
-        ${idea.keywords
-          .map((kw) => `<span class="keyword-tag">${kw}</span>`)
-          .join("")}
-      </div>
     `;
 
     card.addEventListener("dragstart", (e) => {
