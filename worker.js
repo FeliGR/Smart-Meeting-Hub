@@ -78,7 +78,7 @@ async function transcribeAudio(audioData) {
     const result = await transcriber(audioData, {
       sampling_rate: SAMPLE_RATE,
       return_timestamps: false,
-      language: "es",
+      language: "en",
     });
 
     console.log("Raw transcription result:", result);
