@@ -1,19 +1,99 @@
+:root {
+  --primary-color: #2563eb;
+  --background-color: #f8fafc;
+  --text-color: #1e293b;
+  --border-color: #e2e8f0;
+  --hover-color: #1d4ed8;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  line-height: 1.6;
+  color: var(--text-color);
+  background: var(--background-color);
+}
+
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 2rem;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+h1 {
+  font-size: 2.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.subtitle {
+  color: #64748b;
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.status-indicator {
+  padding: 0.5rem 1rem;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  font-size: 0.9rem;
+}
+
+.primary-button {
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: background-color 0.2s;
+}
+
+.primary-button:hover {
+  background: var(--hover-color);
+}
+
+.button-icon {
+  font-size: 1.2rem;
 }
 
 .transcription-box {
-  border: 1px solid #ccc;
-  padding: 10px;
-  margin-top: 10px;
-  height: 200px;
-  overflow-y: auto;
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  min-height: 200px;
+  border: 1px solid var(--border-color);
+  margin-bottom: 2rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
-.ideas-section {
-  margin-top: 30px;
+.placeholder-text {
+  color: #94a3b8;
+}
+
+.ideas-section h2 {
+  margin-bottom: 1rem;
+  font-weight: 600;
 }
 
 .ideas-grid {
@@ -21,28 +101,22 @@
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 1rem;
   padding: 1rem;
-}
-
-.idea-card {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 1rem;
   background: white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  cursor: move;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
 }
 
-.idea-card .keywords {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.keyword-tag {
-  background: #e9ecef;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  color: #495057;
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+  
+  .status-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  h1 {
+    font-size: 2rem;
+  }
 }

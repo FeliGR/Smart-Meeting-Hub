@@ -5,22 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Smart Meeting Hub</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   </head>
   <body>
     <div class="container">
-      <h1>Smart Meeting Hub</h1>
-      <div class="transcription-section">
-        <p id="statusDisplay">Loading model... Please wait.</p>
-        <button id="startTranscription">Start Transcription</button>
-        <div id="transcriptionDisplay" class="transcription-box">
-          <p>Transcription will appear here...</p>
-        </div>
-      </div>
+      <header>
+        <h1>Smart Meeting Hub</h1>
+        <p class="subtitle">Real-time meeting transcription and idea generation</p>
+      </header>
 
-      <div class="ideas-section">
-        <h2>Generated Ideas</h2>
-        <div id="ideasDisplay" class="ideas-grid"></div>
-      </div>
+      <main>
+        <div class="transcription-section">
+          <div class="status-bar">
+            <span id="statusDisplay" class="status-indicator">Loading model... Please wait.</span>
+            <button id="startTranscription" class="primary-button">
+              <span class="button-icon">🎤</span>
+              Start Recording
+            </button>
+          </div>
+          
+          <div id="transcriptionDisplay" class="transcription-box">
+            <p class="placeholder-text">Transcription will appear here...</p>
+          </div>
+        </div>
+
+        <div class="ideas-section">
+          <h2>Generated Ideas</h2>
+          <div id="ideasDisplay" class="ideas-grid"></div>
+        </div>
+      </main>
     </div>
     <script src="index.js" type="module"></script>
   </body>
