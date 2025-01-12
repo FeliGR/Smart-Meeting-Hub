@@ -265,3 +265,39 @@ export function stopDetection() {
 window.addEventListener("load", () => {
   startDetection();
 });
+
+// Add these functions after the existing code
+
+// Make these functions available globally
+window.allowDrop = function(ev) {
+  ev.preventDefault();
+};
+
+window.handleDrop = function(ev) {
+  ev.preventDefault();
+  const text = ev.dataTransfer.getData("text/plain");
+  
+  // Create a new card in the drop zone
+  const droppedCard = document.createElement("div");
+  droppedCard.className = "idea-card";
+  droppedCard.innerHTML = `<p>${text}</p>`;
+  
+  // Add to the target drop zone
+  const dropZone = ev.target.closest(".drop-zone") || ev.target.closest("#ideasDisplay");
+  if (dropZone) {
+    dropZone.appendChild(droppedCard);
+  }
+};
+
+// Optional: Add drag enter/leave effects
+document.querySelectorAll('.drop-zone').forEach(zone => {
+  zone.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    zone.classList.add('drag-over');
+  });
+  
+  zone.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+  });
+});
