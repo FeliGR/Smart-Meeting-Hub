@@ -27,7 +27,6 @@ let audioContext = null;
 let processor = null;
 let isTranscriberReady = false;
 let isKeywordWorkerReady = false;
-let detectionVideoElement = null;
 
 // ========== Inicialización de los Workers ==========
 transcriptionWorker.postMessage({ type: "load" });
@@ -189,32 +188,80 @@ function createIdeaCard(idea) {
 }
 
 // ========== Integración de Detección Visual (COCO-SSD) ==========
-async function startDetection() {
-  try {
-    await detection.loadDetectionModel();
-    detectionVideoElement = await detection.startVideoStream();
-    updateDetectionStatus("Detection active: analyzing video...");
+let detectionActive = false;
+let detectionVideoElement = null;
+let canvas = null;
+let ctx = null;
 
-    // Se ejecuta la detección cada 3 segundos
-    setInterval(async () => {
-      const isNewParticipant = await detection.detectPeople(
-        detectionVideoElement
-      );
-      if (isNewParticipant) {
-        updateDetectionStatus("¡Nuevo participante detectado!");
-        // Aquí se podría invocar la generación de resumen para el participante.
-      } else {
-        updateDetectionStatus("No new participants detected.");
-      }
-    }, 3000);
-  } catch (error) {
-    console.error("Error starting detection:", error);
-    updateDetectionStatus("Detection error.");
+function initializeCanvas() {
+  canvas = document.getElementById("detectionOverlay");
+  ctx = canvas.getContext("2d");
+  canvas.width = 640;
+  canvas.height = 480;
+}
+
+function drawDetectionBoxes(boxes) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = "#00ff00";
+  ctx.lineWidth = 2;
+  ctx.font = "12px Arial";
+  ctx.fillStyle = "#00ff00";
+
+  boxes.forEach(({ bbox, score }) => {
+    const [x, y, width, height] = bbox;
+    ctx.strokeRect(x, y, width, height);
+    ctx.fillText(`${Math.round(score * 100)}%`, x, y - 5);
+  });
+}
+
+function updateDetectionUI(count, isNewPerson) {
+  document.getElementById(
+    "personCounter"
+  ).textContent = `Participants: ${count}`;
+  if (isNewPerson) {
+    document.getElementById("detectionStatus").textContent =
+      "New participant detected!";
   }
 }
 
-function updateDetectionStatus(message) {
-  detectionStatusEl.textContent = message;
+async function runDetectionLoop() {
+  if (!detectionActive) return;
+
+  const result = await detection.detectPeople(detectionVideoElement);
+  if (result) {
+    drawDetectionBoxes(result.boxes);
+    updateDetectionUI(result.count, result.isNewPerson);
+  }
+
+  requestAnimationFrame(runDetectionLoop);
+}
+
+async function startDetection() {
+  try {
+    await detection.loadDetectionModel();
+
+    detectionActive = true;
+    initializeCanvas();
+
+    detectionVideoElement = await detection.startVideoStream();
+    runDetectionLoop();
+  } catch (error) {
+    console.error("Detection setup error:", error);
+    document.getElementById(
+      "detectionStatus"
+    ).textContent = `Detection error: ${error.message}`;
+  }
+}
+
+export function stopDetection() {
+  detectionActive = false;
+  if (detectionVideoElement) {
+    detection.stopVideoStream();
+    detectionVideoElement = null;
+  }
+  if (ctx) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
 }
 
 // Inicia la detección en paralelo al cargar la aplicación

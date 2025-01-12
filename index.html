@@ -28,15 +28,15 @@
       <main>
         <!-- Sección de detección visible al inicio -->
         <section class="detection-section">
-          <video
-            id="detectionVideo"
-            autoplay
-            muted
-            width="320"
-            height="240"
-          ></video>
-          <div id="detectionStatus" class="detection-status">
-            No new participants detected.
+          <div class="video-container">
+            <video id="detectionVideo" autoplay muted></video>
+            <canvas id="detectionOverlay"></canvas>
+          </div>
+          <div class="detection-info">
+            <div id="detectionStatus" class="detection-status">
+              Initializing detection...
+            </div>
+            <div id="personCounter" class="person-counter">Participants: 0</div>
           </div>
         </section>
         <!-- Sección de transcripción -->

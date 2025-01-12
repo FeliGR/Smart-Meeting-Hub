@@ -1,30 +1,29 @@
-// detection.js
-
 let model = null;
 let currentPersonCount = 0;
 let lastDetectionTime = 0;
-const DETECTION_INTERVAL = 1000; // 1 second between detections
-const CONFIDENCE_THRESHOLD = 0.65; // Increased confidence threshold
-const PERSON_ENTER_TIMEOUT = 3000; // Time to confirm new person
+let personHistory = [];
+const HISTORY_SIZE = 5;
+const DETECTION_INTERVAL = 1000;
+const CONFIDENCE_THRESHOLD = 0.65;
 
-/**
- * Carga el modelo COCO-SSD.
- */
 export async function loadDetectionModel() {
   model = await cocoSsd.load();
   console.log("COCO-SSD model loaded for detection.");
 }
 
-/**
- * Inicia el video stream usando el elemento con id "detectionVideo".
- */
 export async function startVideoStream() {
   const videoElement = document.getElementById("detectionVideo");
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     throw new Error("getUserMedia() is not supported by your browser.");
   }
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+        frameRate: { ideal: 15 },
+      },
+    });
     videoElement.srcObject = stream;
     await videoElement.play();
     return videoElement;
@@ -34,34 +33,60 @@ export async function startVideoStream() {
   }
 }
 
-/**
- * Realiza la detección en el frame actual del video.
- * Retorna true si se detecta un aumento en la cantidad de personas.
- */
 export async function detectPeople(videoElement) {
+  const now = Date.now();
+  if (now - lastDetectionTime < DETECTION_INTERVAL) {
+    return null;
+  }
+  lastDetectionTime = now;
+
   if (!model) {
     console.warn("Detection model is not loaded.");
-    return false;
+    return null;
   }
-  const predictions = await model.detect(videoElement);
-  // Filtrar detecciones de la clase 'person' con score > 0.5
-  const persons = predictions.filter(
-    (prediction) => prediction.class === "person" && prediction.score > 0.5
-  );
-  const newCount = persons.length;
-  const isNewParticipant = newCount > currentPersonCount;
-  currentPersonCount = newCount;
-  console.log("Persons detected:", newCount);
-  return isNewParticipant;
+
+  try {
+    const predictions = await model.detect(videoElement);
+    const persons = predictions.filter(
+      (pred) => pred.class === "person" && pred.score > CONFIDENCE_THRESHOLD
+    );
+
+    personHistory.push(persons.length);
+    if (personHistory.length > HISTORY_SIZE) {
+      personHistory.shift();
+    }
+
+    const avgCount = Math.round(
+      personHistory.reduce((a, b) => a + b, 0) / personHistory.length
+    );
+
+    const isNewParticipant = avgCount > currentPersonCount;
+    if (isNewParticipant) {
+      setTimeout(() => {
+        currentPersonCount = avgCount;
+      }, 2000);
+    }
+
+    return {
+      isNewPerson: isNewParticipant,
+      count: avgCount,
+      boxes: persons.map((p) => ({
+        bbox: p.bbox,
+        score: p.score,
+      })),
+    };
+  } catch (error) {
+    console.error("Detection error:", error);
+    return null;
+  }
 }
 
-/**
- * Detiene el stream de video.
- */
 export function stopVideoStream() {
   const videoElement = document.getElementById("detectionVideo");
   if (videoElement.srcObject) {
     videoElement.srcObject.getTracks().forEach((track) => track.stop());
     videoElement.srcObject = null;
   }
+  personHistory = [];
+  currentPersonCount = 0;
 }
