@@ -189,3 +189,60 @@ h1 {
   font-weight: 600;
   color: var(--primary-color);
 }
+
+.ideas-container {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.ideas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+  min-height: 200px;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.idea-card {
+  background: white;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  cursor: move;
+  transition: all 0.2s;
+}
+
+.idea-card:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.idea-card.dragging {
+  opacity: 0.5;
+}
+
+.drop-zone {
+  background: #f8fafc;
+  border: 2px dashed var(--border-color);
+  border-radius: 12px;
+  padding: 1rem;
+  min-height: 200px;
+  margin-bottom: 1rem;
+  transition: background-color 0.2s;
+}
+
+.drop-zone.drag-over {
+  background: #e2e8f0;
+  border-color: var(--primary-color);
+}
+
+.drop-zone h3 {
+  text-align: center;
+  color: #64748b;
+  margin-bottom: 1rem;
+}

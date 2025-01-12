@@ -51,7 +51,34 @@
         </div>
         <div class="ideas-section">
           <h2>Generated Ideas</h2>
-          <div id="ideasDisplay" class="ideas-grid"></div>
+          <div class="ideas-container">
+            <div
+              id="ideasDisplay"
+              class="ideas-grid"
+              ondrop="handleDrop(event)"
+              ondragover="allowDrop(event)"
+            >
+              <!-- Ideas will be added here dynamically -->
+            </div>
+            <div class="idea-categories">
+              <div
+                class="drop-zone"
+                id="important"
+                ondrop="handleDrop(event)"
+                ondragover="allowDrop(event)"
+              >
+                <h3>Important</h3>
+              </div>
+              <div
+                class="drop-zone"
+                id="maybe"
+                ondrop="handleDrop(event)"
+                ondragover="allowDrop(event)"
+              >
+                <h3>Maybe Later</h3>
+              </div>
+            </div>
+          </div>
         </div>
       </main>
     </div>
