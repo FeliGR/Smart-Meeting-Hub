@@ -3,18 +3,15 @@ import * as detection from "./detection.js";
 
 // ========== Constants ==========
 const SAMPLE_RATE = 16000; // 16 kHz sample rate
-const BUFFER_SIZE = 8192; // Tamaño del buffer para ScriptProcessor
-const AMPLITUDE_THRESHOLD = 0.01; // Nivel mínimo para considerar audio "significativo"
-const ACCUMULATION_SECONDS = 1; // Aproximadamente 1 segundo de acumulación
+const BUFFER_SIZE = 8192; // Buffer size for ScriptProcessor
+const AMPLITUDE_THRESHOLD = 0.01; // Minimum level to consider "significant" audio
+const ACCUMULATION_SECONDS = 1; // Approximately 1 second of accumulation
 
 // ========== DOM References ==========
 const btnStartTranscription = document.querySelector("#startTranscription");
 const transcriptionDisplay = document.querySelector("#transcriptionDisplay");
 const statusDisplay = document.querySelector("#statusDisplay");
 const ideasDisplay = document.querySelector("#ideasDisplay");
-
-// Elemento para notificaciones de detección
-const detectionStatusEl = document.getElementById("detectionStatus");
 
 // ========== Workers ==========
 const transcriptionWorker = new Worker("worker.js", { type: "module" });
@@ -28,11 +25,11 @@ let processor = null;
 let isTranscriberReady = false;
 let isKeywordWorkerReady = false;
 
-// ========== Inicialización de los Workers ==========
+// ========== Workers Initialization ==========
 transcriptionWorker.postMessage({ type: "load" });
 keywordWorker.postMessage({ type: "load" });
 
-// ========== Manejadores de Mensajes de los Workers ==========
+// ========== Worker Message Handlers ==========
 transcriptionWorker.onmessage = (e) => {
   switch (e.data.type) {
     case "ready":
@@ -65,7 +62,7 @@ keywordWorker.onmessage = (e) => {
   }
 };
 
-// ========== Event Listener para el botón de transcripción ==========
+// ========== Transcription Button Event Listener ==========
 btnStartTranscription.onclick = async () => {
   if (!isTranscriberReady) return;
 
@@ -87,7 +84,7 @@ btnStartTranscription.onclick = async () => {
   }
 };
 
-// ========== Funciones de Transcripción e Ideas ==========
+// ========== Transcription and Ideas Functions ==========
 function checkWorkersReady() {
   if (isTranscriberReady && isKeywordWorkerReady) {
     updateStatus("Ready to record");
@@ -187,7 +184,7 @@ function createIdeaCard(idea) {
   return card;
 }
 
-// ========== Integración de Detección Visual (COCO-SSD) ==========
+// ========== Visual Detection Integration (COCO-SSD) ==========
 let detectionActive = false;
 let detectionVideoElement = null;
 let canvas = null;
@@ -264,7 +261,7 @@ export function stopDetection() {
   }
 }
 
-// Inicia la detección en paralelo al cargar la aplicación
+// Start detection in parallel when loading the application
 window.addEventListener("load", () => {
   startDetection();
 });
