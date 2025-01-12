@@ -1,14 +1,20 @@
+// ========== IMPORTS ==========
+import * as detection from "./detection.js";
+
 // ========== Constants ==========
 const SAMPLE_RATE = 16000; // 16 kHz sample rate
-const BUFFER_SIZE = 8192; // Buffer size for the ScriptProcessor
-const AMPLITUDE_THRESHOLD = 0.01; // Minimal amplitude to be considered "significant"
-const ACCUMULATION_SECONDS = 1; // ~1 second accumulation (16k samples)
+const BUFFER_SIZE = 8192; // Tamaño del buffer para ScriptProcessor
+const AMPLITUDE_THRESHOLD = 0.01; // Nivel mínimo para considerar audio "significativo"
+const ACCUMULATION_SECONDS = 1; // Aproximadamente 1 segundo de acumulación
 
 // ========== DOM References ==========
 const btnStartTranscription = document.querySelector("#startTranscription");
 const transcriptionDisplay = document.querySelector("#transcriptionDisplay");
 const statusDisplay = document.querySelector("#statusDisplay");
 const ideasDisplay = document.querySelector("#ideasDisplay");
+
+// Elemento para notificaciones de detección
+const detectionStatusEl = document.getElementById("detectionStatus");
 
 // ========== Workers ==========
 const transcriptionWorker = new Worker("worker.js", { type: "module" });
@@ -21,12 +27,13 @@ let audioContext = null;
 let processor = null;
 let isTranscriberReady = false;
 let isKeywordWorkerReady = false;
+let detectionVideoElement = null;
 
-// ========== Init Workers ==========
+// ========== Inicialización de los Workers ==========
 transcriptionWorker.postMessage({ type: "load" });
 keywordWorker.postMessage({ type: "load" });
 
-// Handle messages from transcription worker
+// ========== Manejadores de Mensajes de los Workers ==========
 transcriptionWorker.onmessage = (e) => {
   switch (e.data.type) {
     case "ready":
@@ -44,7 +51,6 @@ transcriptionWorker.onmessage = (e) => {
   }
 };
 
-// Handle messages from keyword worker
 keywordWorker.onmessage = (e) => {
   switch (e.data.type) {
     case "ready":
@@ -60,13 +66,11 @@ keywordWorker.onmessage = (e) => {
   }
 };
 
-// ========== Event Listeners ==========
-// Toggle recording when button is clicked
+// ========== Event Listener para el botón de transcripción ==========
 btnStartTranscription.onclick = async () => {
   if (!isTranscriberReady) return;
 
   if (!isRecording) {
-    // Start recording
     try {
       await startAudioProcessing();
       btnStartTranscription.textContent = "Stop Recording";
@@ -77,7 +81,6 @@ btnStartTranscription.onclick = async () => {
       updateStatus("Error: " + error.message);
     }
   } else {
-    // Stop recording
     stopAudioProcessing();
     btnStartTranscription.textContent = "Start Recording";
     updateStatus("Stopped");
@@ -85,12 +88,7 @@ btnStartTranscription.onclick = async () => {
   }
 };
 
-// ========== Functions ==========
-
-/**
- * Checks if both workers are ready.
- * If ready, enables the start button and updates status.
- */
+// ========== Funciones de Transcripción e Ideas ==========
 function checkWorkersReady() {
   if (isTranscriberReady && isKeywordWorkerReady) {
     updateStatus("Ready to record");
@@ -98,57 +96,32 @@ function checkWorkersReady() {
   }
 }
 
-/**
- * Updates the status display text.
- * @param {string} message
- */
 function updateStatus(message) {
   statusDisplay.textContent = message;
 }
 
-/**
- * Starts audio capture and processing from the user's microphone.
- */
 async function startAudioProcessing() {
   try {
-    // Request user microphone with 16 kHz sample rate
     mediaStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        channelCount: 1,
-        sampleRate: SAMPLE_RATE,
-      },
+      audio: { channelCount: 1, sampleRate: SAMPLE_RATE },
     });
-
-    // Create an AudioContext at 16 kHz
     audioContext = new (window.AudioContext || window.webkitAudioContext)({
       sampleRate: SAMPLE_RATE,
       latencyHint: "interactive",
     });
-
     await audioContext.resume();
-
-    // MediaStream source
     const source = audioContext.createMediaStreamSource(mediaStream);
-
-    // ScriptProcessor for capturing audio data
     processor = audioContext.createScriptProcessor(BUFFER_SIZE, 1, 1);
-
     let audioBuffer = [];
 
-    // Process audio data
     processor.onaudioprocess = (event) => {
       if (!isRecording) return;
-
       const inputData = event.inputBuffer.getChannelData(0);
       const hasSignificantAudio = inputData.some(
         (sample) => Math.abs(sample) > AMPLITUDE_THRESHOLD
       );
-
       if (hasSignificantAudio) {
-        // Accumulate samples
         audioBuffer.push(...inputData);
-
-        // Once we've collected ~1 second of audio, send it to the worker
         if (audioBuffer.length >= SAMPLE_RATE * ACCUMULATION_SECONDS) {
           transcriptionWorker.postMessage({
             type: "transcribe",
@@ -159,71 +132,44 @@ async function startAudioProcessing() {
       }
     };
 
-    // Connect everything
     source.connect(processor);
     processor.connect(audioContext.destination);
-
-    // Let the worker know we're starting a new session
     transcriptionWorker.postMessage({ type: "reset" });
-
     console.log("Audio capture started with ~1s accumulation.");
   } catch (error) {
     console.error("Audio processing error:", error);
-    throw error; // Propagate error
+    throw error;
   }
 }
 
-/**
- * Stops audio capture and cleans up resources.
- */
 function stopAudioProcessing() {
   if (mediaStream) {
     mediaStream.getTracks().forEach((track) => track.stop());
     mediaStream = null;
   }
-
   if (processor) {
     processor.disconnect();
     processor = null;
   }
-
   if (audioContext && audioContext.state !== "closed") {
     audioContext.close();
     audioContext = null;
   }
-
-  // Reset transcription worker session
   transcriptionWorker.postMessage({ type: "reset" });
 }
 
-/**
- * Appends the transcribed text to the transcription display.
- * @param {string} text
- */
 function displayTranscription(text) {
   if (!text?.trim()) return;
-
   const p = document.createElement("p");
   p.textContent = text;
   transcriptionDisplay.appendChild(p);
   transcriptionDisplay.scrollTop = transcriptionDisplay.scrollHeight;
 }
 
-/**
- * Sends new text to the keyword worker for idea extraction.
- * @param {string} text
- */
 function processForIdeas(text) {
-  keywordWorker.postMessage({
-    type: "process",
-    text: text,
-  });
+  keywordWorker.postMessage({ type: "process", text: text });
 }
 
-/**
- * Displays idea cards in the ideas display container.
- * @param {Array} ideas
- */
 function displayIdeas(ideas) {
   console.log("Ideas:", ideas);
   ideas.forEach((idea) => {
@@ -231,20 +177,47 @@ function displayIdeas(ideas) {
   });
 }
 
-/**
- * Creates a draggable idea card element.
- * @param {{ text: string }} idea
- * @returns {HTMLDivElement} A card element containing the idea text.
- */
 function createIdeaCard(idea) {
   const card = document.createElement("div");
   card.className = "idea-card";
   card.draggable = true;
   card.innerHTML = `<p>${idea.text}</p>`;
-
   card.addEventListener("dragstart", (e) => {
     e.dataTransfer.setData("text/plain", idea.text);
   });
-
   return card;
 }
+
+// ========== Integración de Detección Visual (COCO-SSD) ==========
+async function startDetection() {
+  try {
+    await detection.loadDetectionModel();
+    detectionVideoElement = await detection.startVideoStream();
+    updateDetectionStatus("Detection active: analyzing video...");
+
+    // Se ejecuta la detección cada 3 segundos
+    setInterval(async () => {
+      const isNewParticipant = await detection.detectPeople(
+        detectionVideoElement
+      );
+      if (isNewParticipant) {
+        updateDetectionStatus("¡Nuevo participante detectado!");
+        // Aquí se podría invocar la generación de resumen para el participante.
+      } else {
+        updateDetectionStatus("No new participants detected.");
+      }
+    }, 3000);
+  } catch (error) {
+    console.error("Error starting detection:", error);
+    updateDetectionStatus("Detection error.");
+  }
+}
+
+function updateDetectionStatus(message) {
+  detectionStatusEl.textContent = message;
+}
+
+// Inicia la detección en paralelo al cargar la aplicación
+window.addEventListener("load", () => {
+  startDetection();
+});

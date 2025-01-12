@@ -4,39 +4,66 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Smart Meeting Hub</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css" />
+    <!-- Fuentes -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <!-- TensorFlow.js y COCO-SSD -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
   </head>
   <body>
     <div class="container">
       <header>
         <h1>Smart Meeting Hub</h1>
-        <p class="subtitle">Real-time meeting transcription and idea generation</p>
+        <p class="subtitle">
+          Real-time meeting transcription and idea generation
+        </p>
       </header>
 
       <main>
+        <!-- Sección de detección visible al inicio -->
+        <section class="detection-section">
+          <video
+            id="detectionVideo"
+            autoplay
+            muted
+            width="320"
+            height="240"
+          ></video>
+          <div id="detectionStatus" class="detection-status">
+            No new participants detected.
+          </div>
+        </section>
+        <!-- Sección de transcripción -->
         <div class="transcription-section">
           <div class="status-bar">
-            <span id="statusDisplay" class="status-indicator">Loading model... Please wait.</span>
-            <button id="startTranscription" class="primary-button">
+            <span id="statusDisplay" class="status-indicator">
+              Loading model... Please wait.
+            </span>
+            <button id="startTranscription" class="primary-button" disabled>
               <span class="button-icon">🎤</span>
               Start Recording
             </button>
           </div>
-          
           <div id="transcriptionDisplay" class="transcription-box">
             <p class="placeholder-text">Transcription will appear here...</p>
           </div>
         </div>
 
+        <!-- Sección de ideas -->
         <div class="ideas-section">
           <h2>Generated Ideas</h2>
           <div id="ideasDisplay" class="ideas-grid"></div>
         </div>
       </main>
     </div>
-    <script src="index.js" type="module"></script>
+
+    <!-- Importación de scripts -->
+    <script type="module" src="index.js"></script>
   </body>
 </html>
