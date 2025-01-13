@@ -262,23 +262,21 @@ function displayKeyWords(keywords) {
 
 function generateIdeasFromKeywords(keywords) {
   const keywordList = keywords.join(" | ");
-  const content = `I have the following keywords: ${keywordList}.
-Based on these keywords, generate one innovative idea as a full sentence for each keyword.
-Each sentence MUST provide a creative insight related to the keyword.
-Return the result as one line, with each sentence separated by the "|" character (pipe symbol) and no extra characters.
-For example, a correct response MUST be: A futuristic campus design integrating digital learning | A mentorship initiative empowering learners | A community program promoting creative musical expression.
-**Do NOT use the sentences provided in the example.**`;
+  let content = `I have the following keywords: ${keywordList}.
+Based on these keywords, generate exactly THREE innovative and precise ideas that best describe the topic.
+Return your response as one SMALL and CONCISE sentece that naturally integrates all three ideas.
+Do not use list formatting, extra symbols, or provide additional explanation—just a single, well-formed SENTENCE.`;
 
   const prompt = [
     {
       role: "system",
       content:
-        "You are an idea generation expert. Your objective is to generate one creative idea (as a full sentence) per keyword provided.",
+        "You are a creative generator whose objective is to generate ideas from a given list of keywords.",
     },
     { role: "user", content: content },
   ];
 
-  console.log("Generating ideas for keywords:", keywords);
+  console.log("Generating ideas for keywords:", keywordList);
 
   keywordWorker.postMessage({
     type: "ideas",
@@ -287,47 +285,39 @@ For example, a correct response MUST be: A futuristic campus design integrating 
 }
 
 function displayIdeas(ideasText) {
-  let ideas = [];
-
-  // Handle array input and normalize
-  const textToProcess = Array.isArray(ideasText) ? ideasText[0] : ideasText;
-
-  // Validate input
-  if (!textToProcess || typeof textToProcess !== "string") {
-    console.warn("Invalid ideas input:", ideasText);
+  if (typeof ideasText !== "string") {
+    console.warn("displayIdeas: Expected a string for ideasText", ideasText);
     return;
   }
 
-  // Split by either double newlines or single newlines
-  ideas = textToProcess
-    .split(/\n\n|\n/) // Split by either \n\n or \n
-    .map((idea) => idea.trim())
-    .filter((idea) => idea.length > 0);
+  // Trim any leading or trailing whitespace.
+  const trimmedIdeas = ideasText.trim();
 
-  // Clear and display ideas
+  // Clear any existing content in the ideas display.
   ideasDisplay.innerHTML = "";
-  ideas.forEach((idea) => {
-    const card = document.createElement("div");
-    card.className = "idea-card";
-    card.draggable = true;
 
-    const label = document.createElement("div");
-    label.className = "keyword-label";
-    label.textContent = "Idea";
+  // Create a single card to display the paragraph of ideas.
+  const card = document.createElement("div");
+  card.className = "idea-card";
+  card.draggable = true;
 
-    const tag = document.createElement("div");
-    tag.className = "keyword-tag";
-    tag.textContent = idea;
+  const label = document.createElement("div");
+  label.className = "idea-label";
+  label.textContent = "Ideas";
 
-    card.appendChild(label);
-    card.appendChild(tag);
+  const tag = document.createElement("div");
+  tag.className = "idea-tag";
+  tag.textContent = trimmedIdeas;
 
-    card.addEventListener("dragstart", (e) => {
-      e.dataTransfer.setData("text/plain", idea);
-    });
+  card.appendChild(label);
+  card.appendChild(tag);
 
-    ideasDisplay.appendChild(card);
+  // Allow dragging the card's text.
+  card.addEventListener("dragstart", (e) => {
+    e.dataTransfer.setData("text/plain", trimmedIdeas);
   });
+
+  ideasDisplay.appendChild(card);
 }
 
 // ========== Visual Detection Integration (COCO-SSD) ==========

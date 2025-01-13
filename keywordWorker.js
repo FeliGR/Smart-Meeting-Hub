@@ -82,10 +82,10 @@ async function generate_keywords(prompt) {
 
 async function generate_ideas(prompt) {
   const output = await generator(prompt, {
-    max_new_tokens: 200,
-    temperature: 0.7,
-    top_p: 0.8,
-    do_sample: true,
+    max_new_tokens: 100,
+    temperature: 0,
+    top_p: 0,
+    do_sample: false,
     early_stopping: true,
   });
 
@@ -100,8 +100,5 @@ async function generate_ideas(prompt) {
       generatedText = JSON.stringify(output[0].generated_text);
     }
   }
-
-  const ideas = extractKeywordsWithSeparator(generatedText, "|");
-  console.log("Generated ideas:", ideas);
-  return ideas;
+  return generatedText;
 }
