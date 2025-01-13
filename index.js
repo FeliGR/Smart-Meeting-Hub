@@ -2,13 +2,13 @@
 import * as detection from "./detection.js";
 
 // ========== Constants ==========
-const SAMPLE_RATE = 16000; // 16 kHz sample rate
-const BUFFER_SIZE = 8192; // Buffer size for ScriptProcessor
-const AMPLITUDE_THRESHOLD = 0.01; // Minimum level to consider "significant" audio
+const SAMPLE_RATE = 16000;
+const BUFFER_SIZE = 8192;
+const AMPLITUDE_THRESHOLD = 0.01;
 
 // Real-time chunking constants:
-const REALTIME_CHUNK_SIZE = Math.floor(SAMPLE_RATE * 3.5); // 3.5 seconds of audio
-const OVERLAP_SIZE = Math.floor(REALTIME_CHUNK_SIZE * 0.25); // 25% overlap
+const REALTIME_CHUNK_SIZE = Math.floor(SAMPLE_RATE * 3.5);
+const OVERLAP_SIZE = Math.floor(REALTIME_CHUNK_SIZE * 0.25);
 
 // ========== DOM References ==========
 const btnStartTranscription = document.querySelector("#startTranscription");
@@ -31,7 +31,7 @@ let processor = null;
 let isTranscriberReady = false;
 let isKeywordWorkerReady = false;
 let isSummaryWorkerReady = false;
-let accumulatedTranscription = ""; // variable to store complete transcription
+let accumulatedTranscription = "";
 
 // ========== Workers Initialization ==========
 transcriptionWorker.postMessage({ type: "load" });
@@ -62,13 +62,9 @@ keywordWorker.onmessage = (e) => {
       checkWorkersReady();
       break;
     case "result_keywords":
-      // Aquí se reciben las palabras clave generadas por el worker
-      // Puedes mostrar estas palabras clave en el DOM (por ejemplo, en ideasDisplay o en otro contenedor)
       displayKeyWords(e.data.result_keywords);
       break;
     case "result_ideas":
-      // Si también generarás ideas, este mensaje se usará para ello.
-      // Por ejemplo, podrías llamar a: displayIdeas(e.data.result_ideas);
       break;
     case "error":
       console.error("Keyword worker error:", e.data.message);
@@ -141,22 +137,18 @@ async function startAudioProcessing() {
 
     let audioBuffer = [];
 
-    // Use the real-time chunking approach: push input data; when enough samples exist, slice a chunk.
     processor.onaudioprocess = (event) => {
       if (!isRecording) return;
       const inputData = event.inputBuffer.getChannelData(0);
       audioBuffer.push(...inputData);
 
-      // Process while the buffer has enough samples for one chunk.
       while (audioBuffer.length >= REALTIME_CHUNK_SIZE) {
-        // Extract a chunk of REALTIME_CHUNK_SIZE samples.
         const chunk = new Float32Array(
           audioBuffer.slice(0, REALTIME_CHUNK_SIZE)
         );
-        // Keep an overlap (remove only (REALTIME_CHUNK_SIZE - OVERLAP_SIZE)) so that part of the tail is reused.
+
         audioBuffer = audioBuffer.slice(REALTIME_CHUNK_SIZE - OVERLAP_SIZE);
 
-        // Check if the chunk has significant audio.
         const maxLevel = Math.max(...chunk.map(Math.abs));
         if (maxLevel > AMPLITUDE_THRESHOLD) {
           transcriptionWorker.postMessage({
@@ -170,7 +162,6 @@ async function startAudioProcessing() {
     source.connect(processor);
     processor.connect(audioContext.destination);
     transcriptionWorker.postMessage({ type: "reset" });
-    console.log("Real-time audio capture started");
   } catch (error) {
     console.error("Audio processing error:", error);
     throw error;
@@ -192,14 +183,11 @@ function stopAudioProcessing() {
   }
   transcriptionWorker.postMessage({ type: "reset" });
 
-  // Al detener la grabación, si hay texto acumulado, se envía al worker para generar palabras clave.
   if (accumulatedTranscription.trim().length > 0) {
     ideasDisplay.innerHTML = "";
 
     if (accumulatedTranscription.trim().length > 0) {
       ideasDisplay.innerHTML = "";
-
-      console.log("accumulatedTranscription", accumulatedTranscription);
 
       const content = `I have the following text: ${accumulatedTranscription}.
 Based on the text above, generate THREE NEW and APPROPIATE keywords that best capture the overall topic of the text.
@@ -216,8 +204,6 @@ For example, if the text is about the education system, a correct response might
         },
         { role: "user", content: content },
       ];
-
-      console.log(prompt);
 
       keywordWorker.postMessage({
         type: "generate_keywords",
@@ -253,7 +239,6 @@ function displayKeyWords(ideas) {
     card.className = "idea-card";
     card.draggable = true;
 
-    // Add label text
     const label = document.createElement("div");
     label.className = "keyword-label";
     label.textContent = "Keyword";

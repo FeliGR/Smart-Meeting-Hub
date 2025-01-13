@@ -1,3 +1,6 @@
+/* =====================================================
+   VARIABLES
+===================================================== */
 :root {
   --primary-color: #2563eb;
   --background-color: #f8fafc;
@@ -8,6 +11,9 @@
   --card-hover-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
+/* =====================================================
+   RESET / GLOBAL STYLES
+===================================================== */
 * {
   margin: 0;
   padding: 0;
@@ -21,12 +27,18 @@ body {
   background: var(--background-color);
 }
 
+/* =====================================================
+   CONTAINER
+===================================================== */
 .container {
   max-width: 1400px;
   margin: 0 auto;
   padding: 2rem;
 }
 
+/* =====================================================
+   HEADER
+===================================================== */
 header {
   text-align: center;
   margin-bottom: 3rem;
@@ -42,6 +54,9 @@ h1 {
   color: #64748b;
 }
 
+/* =====================================================
+   STATUS BAR & BUTTONS
+===================================================== */
 .status-bar {
   display: flex;
   align-items: center;
@@ -79,6 +94,9 @@ h1 {
   font-size: 1.2rem;
 }
 
+/* =====================================================
+   MAIN LAYOUT
+===================================================== */
 main {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -86,6 +104,9 @@ main {
   align-items: start;
 }
 
+/* =====================================================
+   DETECTION SECTION
+===================================================== */
 .detection-section {
   margin-bottom: 2rem;
   grid-column: 1 / 2;
@@ -131,6 +152,9 @@ main {
   border: none;
 }
 
+/* =====================================================
+   VIDEO
+===================================================== */
 .video-container {
   position: relative;
   width: 100%;
@@ -156,6 +180,9 @@ main {
   pointer-events: none;
 }
 
+/* =====================================================
+   TRANSCRIPTION SECTION
+===================================================== */
 .transcription-section {
   grid-column: 2 / 3;
 }
@@ -175,6 +202,9 @@ main {
   color: #94a3b8;
 }
 
+/* =====================================================
+   IDEAS SECTION
+===================================================== */
 .ideas-section {
   grid-column: 1 / -1;
   margin-top: 2rem;
@@ -271,52 +301,9 @@ main {
   transform: scale(0.95);
 }
 
-@media (max-width: 1024px) {
-  main {
-    grid-template-columns: 1fr;
-  }
-
-  .detection-section,
-  .transcription-section,
-  .ideas-section {
-    grid-column: 1 / -1;
-  }
-
-  .ideas-container {
-    grid-template-columns: 1fr;
-  }
-
-  .idea-categories {
-    flex-direction: row;
-  }
-
-  .drop-zone {
-    flex: 1;
-    min-height: 200px;
-  }
-}
-
-@media (max-width: 768px) {
-  .container {
-    padding: 1rem;
-  }
-
-  .status-bar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  h1 {
-    font-size: 2rem;
-  }
-}
-
-@media (max-width: 640px) {
-  .idea-categories {
-    flex-direction: column;
-  }
-}
-
+/* =====================================================
+   SUMMARY SECTION
+===================================================== */
 .summary-container {
   background: white;
   border-radius: 12px;
@@ -364,4 +351,53 @@ main {
   letter-spacing: 0.05em;
   margin-bottom: 0.5rem;
   font-weight: 500;
+}
+
+/* =====================================================
+   MEDIA QUERIES
+===================================================== */
+@media (max-width: 1024px) {
+  main {
+    grid-template-columns: 1fr;
+  }
+
+  .detection-section,
+  .transcription-section,
+  .ideas-section {
+    grid-column: 1 / -1;
+  }
+
+  .ideas-container {
+    grid-template-columns: 1fr;
+  }
+
+  .idea-categories {
+    flex-direction: row;
+  }
+
+  .drop-zone {
+    flex: 1;
+    min-height: 200px;
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+
+  .status-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  h1 {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .idea-categories {
+    flex-direction: column;
+  }
 }
