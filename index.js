@@ -5,7 +5,10 @@ import * as detection from "./detection.js";
 const SAMPLE_RATE = 16000; // 16 kHz sample rate
 const BUFFER_SIZE = 8192; // Buffer size for ScriptProcessor
 const AMPLITUDE_THRESHOLD = 0.01; // Minimum level to consider "significant" audio
-const ACCUMULATION_SECONDS = 1; // Approximately 1 second of accumulation
+
+// Ajusta estos parámetros para procesar oraciones más largas
+const SILENCE_THRESHOLD = 2.0; // Segundos de silencio para disparar el procesamiento (antes 1.0)
+const MAX_BUFFER_DURATION = 15.0; // Máxima duración en segundos a acumular antes de forzar el procesamiento
 
 // ========== DOM References ==========
 const btnStartTranscription = document.querySelector("#startTranscription");
@@ -14,8 +17,11 @@ const statusDisplay = document.querySelector("#statusDisplay");
 const ideasDisplay = document.querySelector("#ideasDisplay");
 
 // ========== Workers ==========
-const transcriptionWorker = new Worker("worker.js", { type: "module" });
+const transcriptionWorker = new Worker("transcriptionWorker.js", {
+  type: "module",
+});
 const keywordWorker = new Worker("keywordWorker.js", { type: "module" });
+const summaryWorker = new Worker("summaryWorker.js", { type: "module" });
 
 // ========== State Flags & Variables ==========
 let isRecording = false;
@@ -24,10 +30,13 @@ let audioContext = null;
 let processor = null;
 let isTranscriberReady = false;
 let isKeywordWorkerReady = false;
+let isSummaryWorkerReady = false;
+let accumulatedTranscription = ""; // Variable para almacenar toda la transcripción
 
 // ========== Workers Initialization ==========
 transcriptionWorker.postMessage({ type: "load" });
 keywordWorker.postMessage({ type: "load" });
+summaryWorker.postMessage({ type: "load" });
 
 // ========== Worker Message Handlers ==========
 transcriptionWorker.onmessage = (e) => {
@@ -62,6 +71,21 @@ keywordWorker.onmessage = (e) => {
   }
 };
 
+summaryWorker.onmessage = (e) => {
+  switch (e.data.type) {
+    case "ready":
+      isSummaryWorkerReady = true;
+      console.log("Resumen listo");
+      break;
+    case "summary":
+      displaySummary(e.data.summary);
+      break;
+    case "error":
+      console.error("Summary worker error:", e.data.message);
+      break;
+  }
+};
+
 // ========== Transcription Button Event Listener ==========
 btnStartTranscription.onclick = async () => {
   if (!isTranscriberReady) return;
@@ -84,9 +108,9 @@ btnStartTranscription.onclick = async () => {
   }
 };
 
-// ========== Transcription and Ideas Functions ==========
+// ========== Workers Ready Check ==========
 function checkWorkersReady() {
-  if (isTranscriberReady && isKeywordWorkerReady) {
+  if (isTranscriberReady && isKeywordWorkerReady && isSummaryWorkerReady) {
     updateStatus("Ready to record");
     btnStartTranscription.disabled = false;
   }
@@ -96,6 +120,7 @@ function updateStatus(message) {
   statusDisplay.textContent = message;
 }
 
+// ========== Transcription and Ideas Functions ==========
 async function startAudioProcessing() {
   try {
     mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -108,22 +133,43 @@ async function startAudioProcessing() {
     await audioContext.resume();
     const source = audioContext.createMediaStreamSource(mediaStream);
     processor = audioContext.createScriptProcessor(BUFFER_SIZE, 1, 1);
+
     let audioBuffer = [];
+    let silenceCounter = 0;
 
     processor.onaudioprocess = (event) => {
       if (!isRecording) return;
       const inputData = event.inputBuffer.getChannelData(0);
+
+      // Add all audio data to buffer
+      audioBuffer.push(...inputData);
+
+      // Check for significant audio
       const hasSignificantAudio = inputData.some(
         (sample) => Math.abs(sample) > AMPLITUDE_THRESHOLD
       );
+
       if (hasSignificantAudio) {
-        audioBuffer.push(...inputData);
-        if (audioBuffer.length >= SAMPLE_RATE * ACCUMULATION_SECONDS) {
+        silenceCounter = 0; // Reset silence counter on speech
+      } else {
+        silenceCounter += BUFFER_SIZE / SAMPLE_RATE;
+      }
+
+      const bufferDuration = audioBuffer.length / SAMPLE_RATE;
+
+      // Process if we have long silence OR buffer is very long
+      if (
+        (silenceCounter >= SILENCE_THRESHOLD && bufferDuration > 2.0) ||
+        bufferDuration >= MAX_BUFFER_DURATION
+      ) {
+        if (audioBuffer.length > 0) {
+          // Send larger chunks to worker
           transcriptionWorker.postMessage({
             type: "transcribe",
             audioData: new Float32Array(audioBuffer),
           });
-          audioBuffer = [];
+          audioBuffer = []; // Clear after sending
+          silenceCounter = 0;
         }
       }
     };
@@ -131,7 +177,7 @@ async function startAudioProcessing() {
     source.connect(processor);
     processor.connect(audioContext.destination);
     transcriptionWorker.postMessage({ type: "reset" });
-    console.log("Audio capture started with ~1s accumulation.");
+    console.log("Audio capture started with silence detection");
   } catch (error) {
     console.error("Audio processing error:", error);
     throw error;
@@ -156,6 +202,8 @@ function stopAudioProcessing() {
 
 function displayTranscription(text) {
   if (!text?.trim()) return;
+  accumulatedTranscription += " " + text;
+
   const p = document.createElement("p");
   p.textContent = text;
   transcriptionDisplay.appendChild(p);
@@ -215,9 +263,18 @@ function updateDetectionUI(count, isNewPerson) {
   document.getElementById(
     "personCounter"
   ).textContent = `Participants: ${count}`;
+  const detectionStatusElement = document.getElementById("detectionStatus");
+
   if (isNewPerson) {
-    document.getElementById("detectionStatus").textContent =
-      "New participant detected!";
+    detectionStatusElement.textContent = "New participant detected!";
+    if (isSummaryWorkerReady && accumulatedTranscription.trim().length > 0) {
+      summaryWorker.postMessage({
+        type: "summarize",
+        text: accumulatedTranscription,
+      });
+    }
+  } else {
+    detectionStatusElement.textContent = "Detection running...";
   }
 }
 
@@ -266,33 +323,38 @@ window.addEventListener("load", () => {
   startDetection();
 });
 
-
-window.allowDrop = function(ev) {
+window.allowDrop = function (ev) {
   ev.preventDefault();
 };
 
-window.handleDrop = function(ev) {
+window.handleDrop = function (ev) {
   ev.preventDefault();
   const text = ev.dataTransfer.getData("text/plain");
-  
+
   const droppedCard = document.createElement("div");
   droppedCard.className = "idea-card";
   droppedCard.innerHTML = `<p>${text}</p>`;
-  
-  const dropZone = ev.target.closest(".drop-zone") || ev.target.closest("#ideasDisplay");
+
+  const dropZone =
+    ev.target.closest(".drop-zone") || ev.target.closest("#ideasDisplay");
   if (dropZone) {
     dropZone.appendChild(droppedCard);
   }
 };
 
-document.querySelectorAll('.drop-zone').forEach(zone => {
-  zone.addEventListener('dragenter', (e) => {
+document.querySelectorAll(".drop-zone").forEach((zone) => {
+  zone.addEventListener("dragenter", (e) => {
     e.preventDefault();
-    zone.classList.add('drag-over');
+    zone.classList.add("drag-over");
   });
-  
-  zone.addEventListener('dragleave', (e) => {
+
+  zone.addEventListener("dragleave", (e) => {
     e.preventDefault();
-    zone.classList.remove('drag-over');
+    zone.classList.remove("drag-over");
   });
 });
+
+function displaySummary(summary) {
+  const summaryDisplay = document.getElementById("summaryDisplay");
+  summaryDisplay.textContent = summary;
+}

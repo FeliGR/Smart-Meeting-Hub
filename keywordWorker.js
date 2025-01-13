@@ -42,7 +42,7 @@ self.onmessage = async (e) => {
 };
 
 // ========== Main Functions ==========
-
+ 
 /**
  * Loads the text generation model using Xenova's Transformers pipeline.
  */
