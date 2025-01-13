@@ -6,9 +6,9 @@ const SAMPLE_RATE = 16000; // 16 kHz sample rate
 const BUFFER_SIZE = 8192; // Buffer size for ScriptProcessor
 const AMPLITUDE_THRESHOLD = 0.01; // Minimum level to consider "significant" audio
 
-// Ajusta estos parámetros para procesar oraciones más largas
-const SILENCE_THRESHOLD = 2.0; // Segundos de silencio para disparar el procesamiento (antes 1.0)
-const MAX_BUFFER_DURATION = 15.0; // Máxima duración en segundos a acumular antes de forzar el procesamiento
+// Real-time chunking constants:
+const REALTIME_CHUNK_SIZE = Math.floor(SAMPLE_RATE * 3.5); // 3.5 seconds of audio
+const OVERLAP_SIZE = Math.floor(REALTIME_CHUNK_SIZE * 0.25); // 25% overlap
 
 // ========== DOM References ==========
 const btnStartTranscription = document.querySelector("#startTranscription");
@@ -31,7 +31,7 @@ let processor = null;
 let isTranscriberReady = false;
 let isKeywordWorkerReady = false;
 let isSummaryWorkerReady = false;
-let accumulatedTranscription = ""; // Variable para almacenar toda la transcripción
+let accumulatedTranscription = ""; // variable to store complete transcription
 
 // ========== Workers Initialization ==========
 transcriptionWorker.postMessage({ type: "load" });
@@ -47,7 +47,6 @@ transcriptionWorker.onmessage = (e) => {
       break;
     case "transcription":
       displayTranscription(e.data.text);
-      processForIdeas(e.data.text);
       break;
     case "error":
       console.error("Transcription worker error:", e.data.message);
@@ -62,8 +61,14 @@ keywordWorker.onmessage = (e) => {
       isKeywordWorkerReady = true;
       checkWorkersReady();
       break;
-    case "ideas":
-      displayIdeas(e.data.ideas);
+    case "result_keywords":
+      // Aquí se reciben las palabras clave generadas por el worker
+      // Puedes mostrar estas palabras clave en el DOM (por ejemplo, en ideasDisplay o en otro contenedor)
+      displayKeyWords(e.data.result_keywords);
+      break;
+    case "result_ideas":
+      // Si también generarás ideas, este mensaje se usará para ello.
+      // Por ejemplo, podrías llamar a: displayIdeas(e.data.result_ideas);
       break;
     case "error":
       console.error("Keyword worker error:", e.data.message);
@@ -75,7 +80,7 @@ summaryWorker.onmessage = (e) => {
   switch (e.data.type) {
     case "ready":
       isSummaryWorkerReady = true;
-      console.log("Resumen listo");
+      console.log("Summary worker ready");
       break;
     case "summary":
       displaySummary(e.data.summary);
@@ -135,41 +140,29 @@ async function startAudioProcessing() {
     processor = audioContext.createScriptProcessor(BUFFER_SIZE, 1, 1);
 
     let audioBuffer = [];
-    let silenceCounter = 0;
 
+    // Use the real-time chunking approach: push input data; when enough samples exist, slice a chunk.
     processor.onaudioprocess = (event) => {
       if (!isRecording) return;
       const inputData = event.inputBuffer.getChannelData(0);
-
-      // Add all audio data to buffer
       audioBuffer.push(...inputData);
 
-      // Check for significant audio
-      const hasSignificantAudio = inputData.some(
-        (sample) => Math.abs(sample) > AMPLITUDE_THRESHOLD
-      );
+      // Process while the buffer has enough samples for one chunk.
+      while (audioBuffer.length >= REALTIME_CHUNK_SIZE) {
+        // Extract a chunk of REALTIME_CHUNK_SIZE samples.
+        const chunk = new Float32Array(
+          audioBuffer.slice(0, REALTIME_CHUNK_SIZE)
+        );
+        // Keep an overlap (remove only (REALTIME_CHUNK_SIZE - OVERLAP_SIZE)) so that part of the tail is reused.
+        audioBuffer = audioBuffer.slice(REALTIME_CHUNK_SIZE - OVERLAP_SIZE);
 
-      if (hasSignificantAudio) {
-        silenceCounter = 0; // Reset silence counter on speech
-      } else {
-        silenceCounter += BUFFER_SIZE / SAMPLE_RATE;
-      }
-
-      const bufferDuration = audioBuffer.length / SAMPLE_RATE;
-
-      // Process if we have long silence OR buffer is very long
-      if (
-        (silenceCounter >= SILENCE_THRESHOLD && bufferDuration > 2.0) ||
-        bufferDuration >= MAX_BUFFER_DURATION
-      ) {
-        if (audioBuffer.length > 0) {
-          // Send larger chunks to worker
+        // Check if the chunk has significant audio.
+        const maxLevel = Math.max(...chunk.map(Math.abs));
+        if (maxLevel > AMPLITUDE_THRESHOLD) {
           transcriptionWorker.postMessage({
             type: "transcribe",
-            audioData: new Float32Array(audioBuffer),
+            audioData: chunk,
           });
-          audioBuffer = []; // Clear after sending
-          silenceCounter = 0;
         }
       }
     };
@@ -177,7 +170,7 @@ async function startAudioProcessing() {
     source.connect(processor);
     processor.connect(audioContext.destination);
     transcriptionWorker.postMessage({ type: "reset" });
-    console.log("Audio capture started with silence detection");
+    console.log("Real-time audio capture started");
   } catch (error) {
     console.error("Audio processing error:", error);
     throw error;
@@ -198,38 +191,87 @@ function stopAudioProcessing() {
     audioContext = null;
   }
   transcriptionWorker.postMessage({ type: "reset" });
+
+  // Al detener la grabación, si hay texto acumulado, se envía al worker para generar palabras clave.
+  if (accumulatedTranscription.trim().length > 0) {
+    ideasDisplay.innerHTML = "";
+
+    if (accumulatedTranscription.trim().length > 0) {
+      ideasDisplay.innerHTML = "";
+
+      console.log("accumulatedTranscription", accumulatedTranscription);
+
+      const content = `I have the following text: ${accumulatedTranscription}.
+Based on the text above, generate THREE NEW and APPROPIATE keywords that best capture the overall topic of the text.
+Do not simply extract existing words from the text—choose terms that encapsulate the essence of the subject.
+Return the result in a single line separated by the "|" character (pipe symbol), with no extra characters.
+For example, if the text is about the education system, a correct response might be: School | Student | Music.
+**Do NOT use the keywords provided in the example.**`;
+
+      const prompt = [
+        {
+          role: "system",
+          content:
+            "You are a keyword expert. Your objective is to generate innovative and appropriate keywords that capture the essence of a given text.",
+        },
+        { role: "user", content: content },
+      ];
+
+      console.log(prompt);
+
+      keywordWorker.postMessage({
+        type: "generate_keywords",
+        prompt: prompt,
+      });
+    }
+  }
 }
 
 function displayTranscription(text) {
   if (!text?.trim()) return;
-  accumulatedTranscription += " " + text;
 
-  const p = document.createElement("p");
-  p.textContent = text;
-  transcriptionDisplay.appendChild(p);
+  const formattedText = text.trim();
+  const shouldAddPeriod =
+    !accumulatedTranscription.endsWith(".") &&
+    !accumulatedTranscription.endsWith("?") &&
+    !accumulatedTranscription.endsWith("!");
+
+  if (accumulatedTranscription.length === 0) {
+    accumulatedTranscription = formattedText;
+  } else {
+    accumulatedTranscription += (shouldAddPeriod ? ". " : " ") + formattedText;
+  }
+
+  transcriptionDisplay.textContent = accumulatedTranscription;
   transcriptionDisplay.scrollTop = transcriptionDisplay.scrollHeight;
 }
 
-function processForIdeas(text) {
-  keywordWorker.postMessage({ type: "process", text: text });
-}
+function displayKeyWords(ideas) {
+  ideasDisplay.innerHTML = "";
+  ideas.forEach((keyword) => {
+    const card = document.createElement("div");
+    card.className = "idea-card";
+    card.draggable = true;
 
-function displayIdeas(ideas) {
-  console.log("Ideas:", ideas);
-  ideas.forEach((idea) => {
-    ideasDisplay.appendChild(createIdeaCard(idea));
-  });
-}
+    // Add label text
+    const label = document.createElement("div");
+    label.className = "keyword-label";
+    label.textContent = "Keyword";
 
-function createIdeaCard(idea) {
-  const card = document.createElement("div");
-  card.className = "idea-card";
-  card.draggable = true;
-  card.innerHTML = `<p>${idea.text}</p>`;
-  card.addEventListener("dragstart", (e) => {
-    e.dataTransfer.setData("text/plain", idea.text);
+    const keywordText = typeof keyword === "string" ? keyword : keyword.text;
+    const tag = document.createElement("div");
+    tag.className = "keyword-tag";
+    tag.textContent = keywordText;
+
+    card.appendChild(label);
+    card.appendChild(tag);
+
+    card.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/plain", keywordText);
+    });
+
+    ideasDisplay.appendChild(card);
   });
-  return card;
 }
 
 // ========== Visual Detection Integration (COCO-SSD) ==========
@@ -286,17 +328,14 @@ async function runDetectionLoop() {
     drawDetectionBoxes(result.boxes);
     updateDetectionUI(result.count, result.isNewPerson);
   }
-
   requestAnimationFrame(runDetectionLoop);
 }
 
 async function startDetection() {
   try {
     await detection.loadDetectionModel();
-
     detectionActive = true;
     initializeCanvas();
-
     detectionVideoElement = await detection.startVideoStream();
     runDetectionLoop();
   } catch (error) {
@@ -318,7 +357,7 @@ export function stopDetection() {
   }
 }
 
-// Start detection in parallel when loading the application
+// Start detection in parallel when loading the application.
 window.addEventListener("load", () => {
   startDetection();
 });
@@ -330,11 +369,9 @@ window.allowDrop = function (ev) {
 window.handleDrop = function (ev) {
   ev.preventDefault();
   const text = ev.dataTransfer.getData("text/plain");
-
   const droppedCard = document.createElement("div");
   droppedCard.className = "idea-card";
   droppedCard.innerHTML = `<p>${text}</p>`;
-
   const dropZone =
     ev.target.closest(".drop-zone") || ev.target.closest("#ideasDisplay");
   if (dropZone) {
@@ -347,7 +384,6 @@ document.querySelectorAll(".drop-zone").forEach((zone) => {
     e.preventDefault();
     zone.classList.add("drag-over");
   });
-
   zone.addEventListener("dragleave", (e) => {
     e.preventDefault();
     zone.classList.remove("drag-over");

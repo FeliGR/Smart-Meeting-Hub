@@ -3,7 +3,7 @@ import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers/dist
 
 // ========== Constants ==========
 const TASK_NAME = "automatic-speech-recognition";
-const MODEL_NAME = "Xenova/whisper-tiny";
+const MODEL_NAME = "Xenova/whisper-base";
 const SAMPLE_RATE = 16000;
 const MIN_LEVEL_THRESHOLD = 0.01;
 const MODEL_CONFIG = {
@@ -15,6 +15,9 @@ const MODEL_CONFIG = {
     use_vad: true,
   },
 };
+
+// Define a real-time chunk size (matching the main thread)
+const REALTIME_CHUNK_SIZE = Math.floor(SAMPLE_RATE * 3.5); // 0.5 seconds
 
 // ========== Worker State ==========
 let transcriber = null;
@@ -58,30 +61,33 @@ async function loadModel() {
 }
 
 /**
- * Processes a chunk of audio data, accumulating it in a buffer.
- * If the buffer has at least SAMPLE_RATE samples, it tries to transcribe.
+ * Processes a chunk of audio data.
+ * For a real-time approach, we process immediately if the incoming data is at least our chunk size.
  * @param {Float32Array} audioData
  */
 function processAudioChunk(audioData) {
   if (!audioData || audioData.length === 0) return;
 
+  // Accumulate incoming data into audioBuffer
   audioBuffer = audioBuffer.concat(Array.from(audioData));
-  console.log("Buffer size:", audioBuffer.length);
+  console.log("Worker buffer size:", audioBuffer.length);
 
-  // Once we have at least 1 second of audio (SAMPLE_RATE samples), attempt transcription
-  if (audioBuffer.length >= SAMPLE_RATE) {
-    const audioToProcess = new Float32Array(audioBuffer.slice(0, SAMPLE_RATE));
+  // Process immediately if we have at least one chunk's worth of data.
+  if (audioBuffer.length >= REALTIME_CHUNK_SIZE) {
+    const audioToProcess = new Float32Array(
+      audioBuffer.slice(0, REALTIME_CHUNK_SIZE)
+    );
 
-    // Check the maximum amplitude for a minimal threshold
+    // Check maximum amplitude
     const maxLevel = Math.max(...audioToProcess.map(Math.abs));
-    console.log("Max audio level:", maxLevel);
+    console.log("Worker max audio level:", maxLevel);
 
     if (maxLevel > MIN_LEVEL_THRESHOLD) {
       transcribeAudio(audioToProcess);
     }
-
-    // Remove processed samples from the buffer
-    audioBuffer = audioBuffer.slice(SAMPLE_RATE);
+    // Remove processed samples from buffer.
+    // (If needed, you can choose to keep an overlap here by slicing fewer samples.)
+    audioBuffer = audioBuffer.slice(REALTIME_CHUNK_SIZE);
   }
 }
 
@@ -91,8 +97,8 @@ function processAudioChunk(audioData) {
  */
 async function transcribeAudio(audioData) {
   try {
-    console.log("Starting transcription...");
-    // Even though 'language' was set to 'es' in MODEL_CONFIG, we can override for this call
+    console.log("Starting transcription on chunk...");
+    // Language override can be applied if needed.
     const result = await transcriber(audioData, {
       sampling_rate: SAMPLE_RATE,
       return_timestamps: false,
@@ -100,12 +106,11 @@ async function transcribeAudio(audioData) {
     });
 
     console.log("Raw transcription result:", result);
-
     if (result?.text?.trim()) {
       console.log("Sending transcription:", result.text);
       postMessageToClient("transcription", { text: result.text.trim() });
     } else {
-      console.log("No transcription result");
+      console.log("No transcription result for chunk");
     }
   } catch (error) {
     console.error("Transcription error:", error);
@@ -116,7 +121,7 @@ async function transcribeAudio(audioData) {
 // ========== Helper Functions ==========
 
 /**
- * Sends a general message to the main thread with a given type and optional payload.
+ * Sends a general message to the main thread.
  * @param {string} type
  * @param {Object} [payload={}]
  */
@@ -129,8 +134,5 @@ function postMessageToClient(type, payload = {}) {
  * @param {string} errorMessage
  */
 function postError(errorMessage) {
-  self.postMessage({
-    type: "error",
-    message: errorMessage,
-  });
+  self.postMessage({ type: "error", message: errorMessage });
 }

@@ -333,3 +333,35 @@ main {
   color: var(--text-color);
   margin-top: 0.5rem;
 }
+
+.keyword-tag {
+  display: inline-flex;
+  align-items: center;
+  background: var(--primary-color);
+  color: white;
+  padding: 0.3rem 0.8rem;
+  border-radius: 16px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin: 0.2rem;
+  transition: all 0.2s ease;
+}
+
+.keyword-tag:before {
+  content: "#";
+  opacity: 0.7;
+  margin-right: 0.3rem;
+}
+
+.idea-card:hover .keyword-tag {
+  transform: scale(1.02);
+}
+
+.keyword-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
