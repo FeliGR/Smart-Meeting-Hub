@@ -13,14 +13,14 @@ self.onmessage = async (e) => {
     case "load":
       await load();
       break;
-    case "generate_keywords":
+    case "keywords":
       const result_keywords = await generate_keywords(e.data.prompt);
       self.postMessage({
         type: "result_keywords",
         result_keywords: result_keywords,
       });
       break;
-    case "generate_ideas":
+    case "ideas":
       const result_ideas = await generate_ideas(e.data.prompt);
       self.postMessage({
         type: "result_ideas",

@@ -61,10 +61,10 @@ keywordWorker.onmessage = (e) => {
       isKeywordWorkerReady = true;
       checkWorkersReady();
       break;
-    case "result_keywords":
+    case "keywords":
       displayKeyWords(e.data.result_keywords);
       break;
-    case "result_ideas":
+    case "ideas":
       break;
     case "error":
       console.error("Keyword worker error:", e.data.message);
@@ -206,7 +206,7 @@ For example, if the text is about the education system, a correct response might
       ];
 
       keywordWorker.postMessage({
-        type: "generate_keywords",
+        type: "keywords",
         prompt: prompt,
       });
     }
