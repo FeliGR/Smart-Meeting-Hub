@@ -62,9 +62,13 @@ keywordWorker.onmessage = (e) => {
       checkWorkersReady();
       break;
     case "keywords":
-      displayKeyWords(e.data.result_keywords);
+      // First, display the generated keywords
+      displayKeyWords(e.data.keywords);
+      generateIdeasFromKeywords(e.data.keywords);
       break;
     case "ideas":
+      // The ideas worker is expected to return one sentence per keyword separated by "|"
+      displayIdeas(e.data.ideas);
       break;
     case "error":
       console.error("Keyword worker error:", e.data.message);
@@ -146,9 +150,9 @@ async function startAudioProcessing() {
         const chunk = new Float32Array(
           audioBuffer.slice(0, REALTIME_CHUNK_SIZE)
         );
-
+        // Keep part of the audio for overlap
         audioBuffer = audioBuffer.slice(REALTIME_CHUNK_SIZE - OVERLAP_SIZE);
-
+        // Only process if above amplitude threshold
         const maxLevel = Math.max(...chunk.map(Math.abs));
         if (maxLevel > AMPLITUDE_THRESHOLD) {
           transcriptionWorker.postMessage({
@@ -183,39 +187,37 @@ function stopAudioProcessing() {
   }
   transcriptionWorker.postMessage({ type: "reset" });
 
+  // When stopping recording, if we have transcription content, prompt for keywords.
   if (accumulatedTranscription.trim().length > 0) {
     ideasDisplay.innerHTML = "";
 
-    if (accumulatedTranscription.trim().length > 0) {
-      ideasDisplay.innerHTML = "";
-
-      const content = `I have the following text: ${accumulatedTranscription}.
-Based on the text above, generate THREE NEW and APPROPIATE keywords that best capture the overall topic of the text.
+    const content = `I have the following text: ${accumulatedTranscription}.
+Based on the text above, generate exactly THREE NEW and APPROPRIATE keywords that capture the overall topic of the text.
 Do not simply extract existing words from the text—choose terms that encapsulate the essence of the subject.
-Return the result in a single line separated by the "|" character (pipe symbol), with no extra characters.
-For example, if the text is about the education system, a correct response might be: School | Student | Music.
+Return only a single line of text with exactly three words separated by the "|" character (pipe symbol) and no other text or punctuation.
+For example, if the text is about the education system, an acceptable response would be:
+School | Student | Music
 **Do NOT use the keywords provided in the example.**`;
 
-      const prompt = [
-        {
-          role: "system",
-          content:
-            "You are a keyword expert. Your objective is to generate innovative and appropriate keywords that capture the essence of a given text.",
-        },
-        { role: "user", content: content },
-      ];
+    const prompt = [
+      {
+        role: "system",
+        content:
+          "You are a keyword expert. Your objective is to generate innovative and appropriate keywords that capture the essence of a given text.",
+      },
+      { role: "user", content: content },
+    ];
 
-      keywordWorker.postMessage({
-        type: "keywords",
-        prompt: prompt,
-      });
-    }
+    // Send the prompt as a "keywords" message.
+    keywordWorker.postMessage({
+      type: "keywords",
+      prompt: prompt,
+    });
   }
 }
 
 function displayTranscription(text) {
   if (!text?.trim()) return;
-
   const formattedText = text.trim();
   const shouldAddPeriod =
     !accumulatedTranscription.endsWith(".") &&
@@ -227,14 +229,13 @@ function displayTranscription(text) {
   } else {
     accumulatedTranscription += (shouldAddPeriod ? ". " : " ") + formattedText;
   }
-
   transcriptionDisplay.textContent = accumulatedTranscription;
   transcriptionDisplay.scrollTop = transcriptionDisplay.scrollHeight;
 }
 
-function displayKeyWords(ideas) {
+function displayKeyWords(keywords) {
   ideasDisplay.innerHTML = "";
-  ideas.forEach((keyword) => {
+  keywords.forEach((keyword) => {
     const card = document.createElement("div");
     card.className = "idea-card";
     card.draggable = true;
@@ -253,6 +254,76 @@ function displayKeyWords(ideas) {
 
     card.addEventListener("dragstart", (e) => {
       e.dataTransfer.setData("text/plain", keywordText);
+    });
+
+    ideasDisplay.appendChild(card);
+  });
+}
+
+function generateIdeasFromKeywords(keywords) {
+  const keywordList = keywords.join(" | ");
+  const content = `I have the following keywords: ${keywordList}.
+Based on these keywords, generate one innovative idea as a full sentence for each keyword.
+Each sentence MUST provide a creative insight related to the keyword.
+Return the result as one line, with each sentence separated by the "|" character (pipe symbol) and no extra characters.
+For example, a correct response MUST be: A futuristic campus design integrating digital learning | A mentorship initiative empowering learners | A community program promoting creative musical expression.
+**Do NOT use the sentences provided in the example.**`;
+
+  const prompt = [
+    {
+      role: "system",
+      content:
+        "You are an idea generation expert. Your objective is to generate one creative idea (as a full sentence) per keyword provided.",
+    },
+    { role: "user", content: content },
+  ];
+
+  console.log("Generating ideas for keywords:", keywords);
+
+  keywordWorker.postMessage({
+    type: "ideas",
+    prompt: prompt,
+  });
+}
+
+function displayIdeas(ideasText) {
+  let ideas = [];
+
+  // Handle array input and normalize
+  const textToProcess = Array.isArray(ideasText) ? ideasText[0] : ideasText;
+
+  // Validate input
+  if (!textToProcess || typeof textToProcess !== "string") {
+    console.warn("Invalid ideas input:", ideasText);
+    return;
+  }
+
+  // Split by either double newlines or single newlines
+  ideas = textToProcess
+    .split(/\n\n|\n/) // Split by either \n\n or \n
+    .map((idea) => idea.trim())
+    .filter((idea) => idea.length > 0);
+
+  // Clear and display ideas
+  ideasDisplay.innerHTML = "";
+  ideas.forEach((idea) => {
+    const card = document.createElement("div");
+    card.className = "idea-card";
+    card.draggable = true;
+
+    const label = document.createElement("div");
+    label.className = "keyword-label";
+    label.textContent = "Idea";
+
+    const tag = document.createElement("div");
+    tag.className = "keyword-tag";
+    tag.textContent = idea;
+
+    card.appendChild(label);
+    card.appendChild(tag);
+
+    card.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/plain", idea);
     });
 
     ideasDisplay.appendChild(card);

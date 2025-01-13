@@ -14,17 +14,17 @@ self.onmessage = async (e) => {
       await load();
       break;
     case "keywords":
-      const result_keywords = await generate_keywords(e.data.prompt);
+      const keywords = await generate_keywords(e.data.prompt);
       self.postMessage({
-        type: "result_keywords",
-        result_keywords: result_keywords,
+        type: "keywords",
+        keywords: keywords,
       });
       break;
     case "ideas":
-      const result_ideas = await generate_ideas(e.data.prompt);
+      const ideas = await generate_ideas(e.data.prompt);
       self.postMessage({
-        type: "result_ideas",
-        result_ideas: result_ideas,
+        type: "ideas",
+        ideas: ideas,
       });
       break;
     default:
@@ -102,5 +102,6 @@ async function generate_ideas(prompt) {
   }
 
   const ideas = extractKeywordsWithSeparator(generatedText, "|");
+  console.log("Generated ideas:", ideas);
   return ideas;
 }
