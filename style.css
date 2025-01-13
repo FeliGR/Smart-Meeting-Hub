@@ -238,6 +238,7 @@ main {
   transition: all 0.2s ease;
   cursor: grab;
   position: relative;
+  width: 100%;
 }
 
 .idea-card:hover {
@@ -343,7 +344,7 @@ main {
 .idea-tag {
   display: inline-flex;
   align-items: center;
-  color: var(--text-color);
+  color: #64748b;
   padding: 0.3rem 0.8rem;
   border-radius: 16px;
   font-size: 0.9rem;
