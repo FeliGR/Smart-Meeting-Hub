@@ -1,9 +1,8 @@
+// summaryWorker.js
 import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers/dist/transformers.min.js";
 
 const PIPELINE_TASK = "summarization";
 const MODEL_NAME = "Xenova/distilbart-cnn-6-6";
-const MAX_LENGTH = 150;
-const MIN_LENGTH = 50;
 const LOAD_TIMEOUT = 60000;
 
 let summarizer = null;
@@ -18,8 +17,14 @@ self.onmessage = async (e) => {
         }
         break;
       case "summarize":
-        await summarizeText(e.data.text);
+        // Ensure that the prompt (or text) is provided as a string.
+        if (typeof e.data.prompt !== "string") {
+          throw new Error("Expected the prompt to be a string");
+        }
+        await summarizeText(e.data.prompt);
         break;
+      default:
+        console.warn("Unknown message type:", e.data);
     }
   } catch (error) {
     postMessage({ type: "error", message: error.message });
@@ -37,9 +42,7 @@ async function loadModelWithTimeout() {
   try {
     isLoading = true;
     postMessage({ type: "loading", status: "started" });
-
     await Promise.race([loadModel(), timeoutPromise]);
-
     postMessage({ type: "ready" });
   } catch (error) {
     console.error("Error loading model:", error);
@@ -69,13 +72,16 @@ async function summarizeText(text) {
   }
 
   try {
-    console.log("Generating summary, input length:", text.length);
-    const result = await summarizer(text, {
-      min_length: MIN_LENGTH,
-      max_length: MAX_LENGTH,
-    });
 
-    const summary = result?.[0]?.summary_text?.trim() || "";
+    console.log(text)
+    const result = await summarizer(text, {
+      max_new_tokens: 100,
+    });
+    
+    const summary = result[0].summary_text;
+
+    console.log(`Summarized text: ${summary}`);
+    
     postMessage({ type: "summary", summary });
   } catch (error) {
     throw new Error(`Summarization failed: ${error.message}`);

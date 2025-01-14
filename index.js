@@ -83,6 +83,7 @@ summaryWorker.onmessage = (e) => {
       console.log("Summary worker ready");
       break;
     case "summary":
+      console.log("Summary worker response:", e.data.summary);
       displaySummary(e.data.summary);
       break;
     case "error":
@@ -208,33 +209,16 @@ School | Student | Music
       { role: "user", content: content },
     ];
 
-    // Send the prompt as a "keywords" message.
     keywordWorker.postMessage({
       type: "keywords",
       prompt: prompt,
     });
   }
 
-    const content = `I have the following text: ${accumulatedTranscription}.
-  Based on the text above, generate a well-structured and detailed summary that captures the key ideas and main points of the text.
-  The summary can be longer than a few sentences and should use an appropriate format, such as paragraphs, lists, or a combination of both, depending on the content.
-  Focus on clarity and organization to make the summary easy to read and understand.`;
-
-  const prompt = [
-    {
-      role: "system",
-      content:
-        "You are a summarization expert. Your objective is to create detailed and well-structured summaries that effectively convey the key ideas and main points of a given text. Use clear formatting, such as paragraphs or lists, to improve readability.",
-    },
-    { role: "user", content: content },
-  ];
-
   summaryWorker.postMessage({
     type: "summarize",
-    prompt: prompt,
-
+    prompt: accumulatedTranscription,
   });
-
 }
 
 function displayTranscription(text) {
