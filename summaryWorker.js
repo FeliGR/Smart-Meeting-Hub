@@ -75,7 +75,7 @@ async function summarizeText(text) {
 
     console.log(text)
     const result = await summarizer(text, {
-      max_new_tokens: 100,
+      max_new_tokens: 200,
     });
     
     const summary = result[0].summary_text;

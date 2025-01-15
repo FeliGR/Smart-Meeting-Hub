@@ -5,12 +5,12 @@ import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers/dist
 const TASK_NAME = "automatic-speech-recognition";
 const MODEL_NAME = "Xenova/whisper-base";
 const SAMPLE_RATE = 16000;
-const MIN_LEVEL_THRESHOLD = 0.01;
+const MIN_LEVEL_THRESHOLD = 0.06;
 const MODEL_CONFIG = {
   device: "cpu",
   chunk_length_s: 30,
   stride_length_s: 5,
-  language: "es",
+  language: "en",
   task_config: {
     use_vad: true,
   },

@@ -215,10 +215,10 @@ School | Student | Music
     });
   }
 
-  summaryWorker.postMessage({
-    type: "summarize",
-    prompt: accumulatedTranscription,
-  });
+  // summaryWorker.postMessage({
+  //   type: "summarize",
+  //   prompt: accumulatedTranscription,
+  // });
 }
 
 function displayTranscription(text) {
@@ -361,9 +361,10 @@ function updateDetectionUI(count, isNewPerson) {
   if (isNewPerson) {
     detectionStatusElement.textContent = "New participant detected!";
     if (isSummaryWorkerReady && accumulatedTranscription.trim().length > 0) {
+      console.log("Sending accumulated transcription to summary worker");
       summaryWorker.postMessage({
         type: "summarize",
-        text: accumulatedTranscription,
+        prompt: accumulatedTranscription,
       });
     }
   } else {
