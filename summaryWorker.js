@@ -17,7 +17,6 @@ self.onmessage = async (e) => {
         }
         break;
       case "summarize":
-        // Ensure that the prompt (or text) is provided as a string.
         if (typeof e.data.prompt !== "string") {
           throw new Error("Expected the prompt to be a string");
         }

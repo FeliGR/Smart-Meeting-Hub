@@ -62,12 +62,10 @@ keywordWorker.onmessage = (e) => {
       checkWorkersReady();
       break;
     case "keywords":
-      // First, display the generated keywords
       displayKeyWords(e.data.keywords);
       generateIdeasFromKeywords(e.data.keywords);
       break;
     case "ideas":
-      // The ideas worker is expected to return one sentence per keyword separated by "|"
       displayIdeas(e.data.ideas);
       break;
     case "error":
@@ -151,9 +149,8 @@ async function startAudioProcessing() {
         const chunk = new Float32Array(
           audioBuffer.slice(0, REALTIME_CHUNK_SIZE)
         );
-        // Keep part of the audio for overlap
         audioBuffer = audioBuffer.slice(REALTIME_CHUNK_SIZE - OVERLAP_SIZE);
-        // Only process if above amplitude threshold
+
         const maxLevel = Math.max(...chunk.map(Math.abs));
         if (maxLevel > AMPLITUDE_THRESHOLD) {
           transcriptionWorker.postMessage({
@@ -188,7 +185,6 @@ function stopAudioProcessing() {
   }
   transcriptionWorker.postMessage({ type: "reset" });
 
-  // When stopping recording, if we have transcription content, prompt for keywords.
   if (accumulatedTranscription.trim().length > 0) {
     ideasDisplay.innerHTML = "";
 
@@ -214,11 +210,6 @@ School | Student | Music
       prompt: prompt,
     });
   }
-
-  // summaryWorker.postMessage({
-  //   type: "summarize",
-  //   prompt: accumulatedTranscription,
-  // });
 }
 
 function displayTranscription(text) {
@@ -294,14 +285,10 @@ function displayIdeas(ideasText) {
     console.warn("displayIdeas: Expected a string for ideasText", ideasText);
     return;
   }
-
-  // Trim any leading or trailing whitespace.
   const trimmedIdeas = ideasText.trim();
 
-  // Clear any existing content in the ideas display.
   ideasDisplay.innerHTML = "";
 
-  // Create a single card to display the paragraph of ideas.
   const card = document.createElement("div");
   card.className = "idea-card";
   card.draggable = true;
@@ -317,7 +304,6 @@ function displayIdeas(ideasText) {
   card.appendChild(label);
   card.appendChild(tag);
 
-  // Allow dragging the card's text.
   card.addEventListener("dragstart", (e) => {
     e.dataTransfer.setData("text/plain", trimmedIdeas);
   });

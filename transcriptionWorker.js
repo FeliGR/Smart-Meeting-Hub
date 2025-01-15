@@ -16,7 +16,6 @@ const MODEL_CONFIG = {
   },
 };
 
-// Define a real-time chunk size (matching the main thread)
 const REALTIME_CHUNK_SIZE = Math.floor(SAMPLE_RATE * 3.5);
 
 // ========== Worker State ==========
